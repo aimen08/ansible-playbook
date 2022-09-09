@@ -1,0 +1,96 @@
+- hosts: all
+  become: 'yes'
+  user: aymen
+  gather_facts: false
+  tasks:
+    - name: Install docker packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: 'yes'
+      tags:
+        - docker
+    - name: Add Docker s GPG key for ubuntu from official site
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      tags:
+        - docker
+    - name: Verify gpg key with the fingerprint
+      apt_key:
+        id: 0EBFCD88
+        state: present
+      tags:
+       - docker
+    - name: Configure Docker for ubuntu stable repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+        state: present
+        update_cache: yes
+      tags:
+       - docker
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+      tags:
+        - docker
+    - name: Install docker-ce
+      apt:
+        name: docker-ce
+        state: present
+        update_cache: yes
+      tags:
+        - docker
+    - name: Add "aymen" user to "docker" group
+      user:
+        name: "aymen"
+        group: "docker"
+        append: yes
+      tags:
+        - docker
+    - name: Install docker-compose from official github repo
+      get_url:
+        url : https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: 'u+x,g+x'
+    - name: Install related Ubuntu packages
+      apt:
+        name: "{{ packages }}"
+        state: latest
+      vars:
+        packages:
+          - python3-pip
+    - name: Install python packages
+      pip:
+        name: docker
+    - name: Create portainer container
+      docker_container:
+        name: portainer
+        image: portainer/portainer-ce
+        state: started
+        recreate: yes
+        restart_policy: always
+        published_ports:
+          - "8000:8000"
+          - "9000:9000"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - portainer_data:/data
+
+    # FIREWALL SETUP
+    - name: Open Portainer port
+      ufw:
+        state: enabled
+        rule: allow
+        port: "9000"
+        proto: tcp
+    - name: Open SSH port
+      ufw:
+        state: enabled
+        rule: allow
+        port: "22"
+        proto: tcp
